@@ -1,1 +1,2 @@
-/* Your own Supabase settings (from the old site’s config.user.js). Leave as is to run without accounts. */
+window.KAYAOS_SUPABASE_URL = 'https://rtunrymgqqdrldeouvst.supabase.co';
+window.KAYAOS_SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJ0dW5yeW1ncXFkcmxkZW91dnN0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTIzNzU3MzYsImV4cCI6MjEwNzk1MTczNn0.hEwSWEerpqzSg5BY6rkwQlZ4kXPzsDcDJQ91XV8G4O4';
