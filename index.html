@@ -1,0 +1,858 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<meta name="theme-color" content="#111111" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="Kayaos" />
+<title>Kayaos.space</title>
+<link rel="manifest" href="manifest.webmanifest" />
+<link rel="icon" href="favicon.ico" />
+<link rel="apple-touch-icon" href="apple-touch-icon.png" />
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<!-- Cloud settings live in config.js (Supabase URL + anon key). Blank = local-only mode. -->
+<script src="config.js?v=2026.11.21-106"></script>
+<script src="config.user.js"></script>  <!-- your own Supabase settings: never in the zip, so updates keep them -->
+<!-- Libraries first, app last: deferred scripts run in this exact order. -->
+<script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script defer src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script defer src="script.js?v=2026.11.21-106"></script>
+<script defer src="work.js?v=2026.11.21-106"></script>
+<script defer src="clock.js?v=2026.11.21-106"></script>
+<script defer src="fuel.js?v=2026.11.21-106"></script>
+<script defer src="owner.js?v=2026.11.21-106"></script>
+<script defer src="wayof.js?v=2026.11.21-106"></script>
+<!-- Self-repair: if the app code didn't start (e.g. a phone kept an old cached copy), clear caches and reload once -->
+<script>
+window.KAYAOS_BUILD = '2026.11.21-106';
+setTimeout(function () {
+  if (window.__kayaosReady === window.KAYAOS_BUILD) return;
+  var key = 'kayaos.repair.' + window.KAYAOS_BUILD;
+  try { if (sessionStorage.getItem(key)) return; sessionStorage.setItem(key, '1'); } catch (e) { return; }
+  var jobs = [];
+  /* a slow connection can take a while to load the libraries: only repair if the app really did not start */
+  if ('serviceWorker' in navigator) jobs.push(navigator.serviceWorker.getRegistrations().then(function (rs) { return Promise.all(rs.map(function (r) { return r.unregister(); })); }));
+  if (window.caches) jobs.push(caches.keys().then(function (ks) { return Promise.all(ks.map(function (k) { return caches.delete(k); })); }));
+  /* never reload on its own while you use the app: offer a button instead */
+  var bar = document.createElement('button');
+  bar.textContent = 'Kayaos is still starting. Tap to reload.';
+  bar.style.cssText = 'position:fixed;left:12px;right:12px;bottom:12px;z-index:9999;padding:12px;border-radius:14px;border:0;background:#111;color:#fff;font-weight:800';
+  bar.onclick = function () { Promise.all(jobs).catch(function () {}).then(function () { location.reload(); }); };
+  document.body.appendChild(bar);
+}, 25000);
+</script>
+<style>
+:root{--paper:#f2f3f5;--ink:#111;--muted:#71695d;--panel:#ffffff;--panel2:#fff;--line:rgba(17,17,17,.14);--black:#111;--green:#4caf50;--blue:#8ec5f5;--yellow:#ffd23f;--orange:#ff8a34;--red:#ff4d4d;--burg:#8b1e1e;--shadow:0 22px 60px rgba(0,0,0,.16);--nav:86px;--r:26px}
+[data-theme=dark]{--paper:#101014;--ink:#f8f4ec;--muted:#b7b0a7;--panel:#18181d;--panel2:#22222a;--line:rgba(255,255,255,.13);--shadow:0 22px 70px rgba(0,0,0,.38)}
+*{box-sizing:border-box}
+html{color-scheme:light}[data-theme=dark]{color-scheme:dark}
+body{margin:0;background:radial-gradient(circle at 0 0,rgba(255,138,52,.22),transparent 34%),radial-gradient(circle at 100% 15%,rgba(76,175,80,.14),transparent 28%),var(--paper);color:var(--ink);font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;padding-bottom:calc(var(--nav) + 40px + env(safe-area-inset-bottom));min-height:100vh}
+button,input,select,textarea{font:inherit;color:inherit}button{cursor:pointer;-webkit-tap-highlight-color:transparent}
+[hidden]{display:none!important}
+.app{max-width:1180px;margin:auto;padding:0 14px}
+.top{position:sticky;top:0;z-index:20;margin:0 -14px;padding:12px 14px;background:color-mix(in srgb,var(--paper) 88%,transparent);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);border-bottom:1px solid var(--line)}
+.toprow{display:flex;align-items:center;gap:10px}
+.brandIcon{width:44px;height:44px;border-radius:14px;object-fit:cover;box-shadow:0 10px 24px rgba(0,0,0,.18)}
+.topActions{margin-left:auto;display:flex;gap:8px}
+.iconbtn{border:1px solid var(--line);background:var(--panel2);border-radius:14px;width:42px;height:42px;padding:0;font-weight:850;font-size:18px;display:inline-grid;place-items:center;box-shadow:0 8px 22px rgba(0,0,0,.05)}
+.card{background:linear-gradient(180deg,color-mix(in srgb,var(--panel) 94%,white),var(--panel));border:1px solid var(--line);border-radius:var(--r);box-shadow:var(--shadow);padding:16px}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.primary{background:var(--black);color:#fff;border:0;border-radius:16px;padding:12px 15px;font-weight:950}
+[data-theme=dark] .primary{background:#f8f4ec;color:#111}
+.ghost{background:var(--panel2);border:1px solid var(--line);border-radius:16px;padding:12px 15px;font-weight:850}
+.danger{background:var(--red);color:#fff;border:0;border-radius:16px;padding:12px 15px;font-weight:950}
+.sub{color:var(--muted);font-size:13px}
+.view{display:none;padding-top:14px}.view.active{display:block}
+.sectionHead{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:14px 2px 10px}
+.sectionHead h2{margin:0;font-size:22px;letter-spacing:-.04em}
+.center{text-align:center}.linkBtn{border:0;background:none;color:var(--muted);text-decoration:underline;font-size:13px;padding:2px}
+/* Stats + search + categories */
+.statRow{display:flex;gap:8px;overflow:auto;scrollbar-width:none}.statRow::-webkit-scrollbar{display:none}
+.stat{flex:1 0 auto;border:1px solid var(--line);background:var(--panel2);border-radius:16px;padding:9px 12px;font-size:13px;white-space:nowrap}.stat b{font-size:18px;margin-right:4px}
+.stat.warn b{color:var(--red)}
+.search{margin-top:10px;display:flex;gap:8px;align-items:center;background:var(--panel2);border:1px solid var(--line);border-radius:16px;padding:10px 13px}.search input{border:0;outline:0;background:transparent;width:100%}
+.catbar{display:flex;gap:8px;overflow:auto;padding:10px 0 2px;scrollbar-width:none}.catbar::-webkit-scrollbar{display:none}
+.cat{white-space:nowrap;border:1px solid var(--line);background:var(--panel2);border-radius:999px;padding:8px 12px;font-weight:850}.cat.active{background:var(--black);color:white}
+[data-theme=dark] .cat.active{background:#f8f4ec;color:#111}
+/* Cards */
+.taskGrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:12px}
+.task{position:relative;overflow:hidden;border:1px solid var(--line);border-radius:22px;padding:14px;box-shadow:0 12px 28px rgba(0,0,0,.09);display:flex;flex-direction:column;gap:6px}
+.task:before{content:"";position:absolute;inset:0;background:linear-gradient(120deg,rgba(255,255,255,.42),transparent);pointer-events:none}
+.task.low{background:#9BE7B1;color:#102217}.task.soon{background:#FFE16A;color:#332700}.task.urgent{background:#FFB347;color:#311b00}.task.hot{background:#FF5A4F;color:#250000}.task.missed{background:#8B1E1E;color:white}.task.done{background:#7FB7FF;color:#071528}.task.nodue{background:#E9E2D2;color:#1d1a14}
+.task .sub{color:color-mix(in srgb,currentColor 72%,transparent)}
+.task.dark .badge{background:rgba(255,255,255,.9);color:#111}
+.taskHead{display:flex;gap:8px;align-items:flex-start}.task h3{margin:0;font-size:18px;letter-spacing:-.03em;flex:1}
+.task.done h3{text-decoration:line-through;text-decoration-thickness:2px}
+.badge{font-size:10px;font-weight:950;text-transform:uppercase;letter-spacing:.08em;padding:4px 7px;border-radius:999px;background:rgba(0,0,0,.75);color:#fff}
+.meter{position:relative;height:10px;border-radius:99px;background:rgba(0,0,0,.16);overflow:hidden;margin-top:4px}
+.task.dark .meter{background:rgba(255,255,255,.22)}
+.meter span{display:block;height:100%;border-radius:99px;background-image:linear-gradient(90deg,#2e9e4f,#ffd23f,#ff8a34,#ff3b30,#5a0d0d);background-repeat:no-repeat;box-shadow:inset 0 0 0 1px rgba(0,0,0,.18)}
+.task.done .meter span{background:#2f6fd0}
+.meterLabel{font-size:12px}.meterLabel b{text-transform:uppercase;letter-spacing:.05em}
+.meta{display:flex;gap:6px;flex-wrap:wrap;margin:4px 0}
+.chip{font-size:12px;padding:5px 8px;border-radius:999px;background:rgba(255,255,255,.56);border:1px solid rgba(0,0,0,.08)}
+.task.dark .chip{background:rgba(255,255,255,.2);color:#fff}
+button.chip{cursor:pointer}
+.notes{margin:2px 0;font-size:14px;white-space:pre-wrap}
+.taskActions{display:flex;gap:6px;justify-content:flex-end;margin-top:auto;padding-top:4px}
+.mini{border:0;background:rgba(255,255,255,.72);color:#111;border-radius:12px;min-width:38px;height:36px;padding:0 9px;font-weight:900}
+.task.dark .mini{background:rgba(255,255,255,.24);color:#fff}
+.mini.big{padding:0 14px}
+.empty{padding:22px;text-align:center;color:var(--muted);border:1px dashed var(--line);border-radius:18px}
+/* Week */
+.week{display:grid;grid-template-columns:repeat(7,1fr);gap:6px}
+.day{border:1px solid var(--line);background:var(--panel2);border-radius:16px;padding:9px 3px;text-align:center}
+.day b{display:block;font-size:12px}.day strong{display:block;font-size:21px;margin:3px 0}
+.day.today{outline:3px solid color-mix(in srgb,var(--orange) 50%,transparent);background:color-mix(in srgb,var(--orange) 12%,var(--panel2))}
+.dots{display:flex;justify-content:center;gap:3px;min-height:6px}.dot{width:6px;height:6px;border-radius:50%;background:var(--muted)}
+.agenda{display:grid;gap:10px;margin-top:14px}
+.agendaDay h3{margin:0 0 6px;font-size:14px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;display:flex;justify-content:space-between}
+.agendaDay h3 button{border:0;background:none;color:inherit;font:inherit;text-decoration:underline;padding:0}
+/* Shared list rows (week agenda + day timeline) */
+.item{display:grid;grid-template-columns:82px 1fr auto;gap:10px;align-items:center;border:1px solid var(--line);background:var(--panel2);border-radius:16px;padding:10px 12px;border-left:7px solid var(--muted)}
+.item+.item{margin-top:6px}
+.item time{font-weight:950;font-size:14px;white-space:nowrap}.item b{display:block}
+.item.low{border-left-color:#2e9e4f}.item.soon{border-left-color:#e3b900}.item.urgent{border-left-color:var(--orange)}.item.hot{border-left-color:var(--red)}.item.missed{border-left-color:var(--burg)}.item.done{border-left-color:#2f6fd0;opacity:.7}.item.done b{text-decoration:line-through}
+.item .mini{background:var(--paper);border:1px solid var(--line);color:var(--ink)}
+.timeline .groupTitle{margin:16px 2px 8px;font-size:13px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em}
+/* School */
+.schoolHead{margin-top:4px}
+.field{display:grid;gap:5px;font-size:13px;color:var(--muted);font-weight:700}
+.field input,.field select{color:var(--ink);font-weight:400}
+.alertHint{margin:10px 0 0;font-size:12px}
+/* Place */
+.mapbox{height:320px;border:1px solid var(--line);border-radius:20px;overflow:hidden;background:var(--panel2);display:grid;place-items:center;margin-bottom:10px}
+.mapbox .leaflet-container{width:100%;height:100%;font:inherit}.leaflet-popup-content{color:#111}
+.panelTitle{font-weight:1000;font-size:17px;margin:16px 0 8px}
+.locList{display:grid;gap:8px;max-height:260px;overflow:auto}
+.locItem{font-size:12px;border:1px solid var(--line);background:var(--panel2);border-radius:14px;padding:9px}
+.navLink{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);background:var(--panel2);border-radius:16px;padding:11px 14px;text-decoration:none;color:inherit;font-weight:850}
+.navLink:not([href]){opacity:.45;pointer-events:none}
+.on{outline:3px solid color-mix(in srgb,var(--green) 55%,transparent)}
+/* Splash (launch screen) — CSS-timed so it always clears, even if a script fails */
+#splash{position:fixed;inset:0;z-index:100;display:grid;place-items:center;background:radial-gradient(circle at 20% 10%,rgba(255,138,52,.35),transparent 45%),radial-gradient(circle at 90% 80%,rgba(76,175,80,.25),transparent 40%),var(--paper);animation:splashOut .45s ease 1.3s forwards}
+.splashIn{display:grid;justify-items:center;gap:6px;animation:splashIn .6s cubic-bezier(.2,.8,.2,1) both}
+.splashIn img{width:116px;height:116px;border-radius:32px;box-shadow:0 24px 60px rgba(0,0,0,.22);margin-bottom:10px}
+.splashIn b{font-size:34px;letter-spacing:-.06em;font-weight:1000}
+.splashIn span{color:var(--muted);font-size:14px;letter-spacing:.02em}
+@keyframes splashIn{from{opacity:0;transform:scale(.92) translateY(8px)}to{opacity:1;transform:none}}
+@keyframes splashOut{to{opacity:0;visibility:hidden}}
+@media (prefers-reduced-motion:reduce){#splash{animation-delay:.6s;animation-duration:.01s}.splashIn{animation:none}}
+.viewTitle{margin:0;font-size:24px;letter-spacing:-.05em;font-weight:1000;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+/* Voice switch */
+.seg{display:grid;grid-template-columns:1fr 1fr;gap:4px;background:var(--panel2);border:1px solid var(--line);border-radius:14px;padding:4px}
+.seg button{border:0;background:transparent;border-radius:11px;padding:10px;font-weight:900;color:var(--ink)}
+.seg button.active{background:var(--black);color:#fff}
+[data-theme=dark] .seg button.active{background:#f8f4ec;color:#111}
+/* Pickers */
+.pickList{display:grid;gap:6px;max-height:50vh;overflow:auto;margin:8px 0 12px}
+.pickList input:disabled+span{opacity:.45}
+/* Team */
+.invite{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;border:1px dashed var(--line);border-radius:16px;padding:10px 12px;margin-bottom:10px}
+.code{font-size:26px;font-weight:1000;letter-spacing:.2em;font-family:ui-monospace,Menlo,monospace}
+.memberList{display:grid;gap:6px}
+.member{display:flex;align-items:center;gap:10px;border:1px solid var(--line);background:var(--panel2);border-radius:14px;padding:8px 10px}
+.member .mname{flex:1;min-width:0}
+.member .mini{background:var(--paper);border:1px solid var(--line);color:var(--ink)}
+.avatar{width:32px;height:32px;flex:0 0 32px;border-radius:50%;background:var(--orange);color:#fff;display:grid;place-items:center;font-weight:950}
+.dangerText{color:var(--red)}
+/* Bottom bar items */
+.navItem{flex:1 0 56px;border:0;background:transparent;color:#fff;border-radius:18px;padding:8px 4px;font-size:11px;display:grid;gap:2px;place-items:center;position:relative;max-width:96px}
+.navItem .ic{font-size:18px;line-height:1}
+.navItem .nl{max-width:76px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.navItem.active{background:rgba(255,255,255,.18)}
+.navAdd{color:rgba(255,255,255,.75);outline:1px dashed rgba(255,255,255,.3);outline-offset:-4px}
+.navSep{flex:0 0 1px;align-self:stretch;margin:8px 2px;background:rgba(255,255,255,.2)}
+.nav .count{position:absolute;top:3px;right:calc(50% - 24px);background:var(--red);color:#fff;font-size:10px;font-weight:950;border-radius:99px;min-width:17px;height:17px;display:grid;place-items:center;padding:0 4px}
+.nav .count.calm{background:rgba(255,255,255,.28)}
+.moreCats{display:flex;flex-wrap:wrap;gap:6px;padding:4px}
+/* Install */
+.installBtn{border:0;background:var(--orange);color:#fff;border-radius:14px;height:42px;padding:0 14px;font-weight:950;white-space:nowrap}
+.installBtn.ready{box-shadow:0 0 0 4px color-mix(in srgb,var(--orange) 30%,transparent)}
+.steps{margin:6px 0 0;padding-left:22px;display:grid;gap:10px;font-size:15px;line-height:1.4}
+.kbd{display:inline-block;border:1px solid var(--line);background:var(--panel2);border-radius:6px;padding:0 6px;font-weight:900}
+.task.flash{animation:flash 1.2s ease 2}
+@keyframes flash{50%{box-shadow:0 0 0 6px var(--orange),0 12px 28px rgba(0,0,0,.09)}}
+/* Checklists on cards + editor */
+.checklist{list-style:none;margin:2px 0;padding:0;display:grid;gap:4px}
+.chk{display:flex;align-items:center;gap:8px;width:100%;text-align:left;border:0;background:rgba(255,255,255,.45);color:inherit;border-radius:10px;padding:6px 8px;font-size:14px}
+.task.dark .chk{background:rgba(255,255,255,.16)}
+.chk .box{flex:0 0 20px;height:20px;border-radius:6px;border:2px solid currentColor;display:grid;place-items:center;font-weight:900;font-size:13px;opacity:.75}
+.chk.on .ct{text-decoration:line-through;opacity:.6}
+.chk.on .box{background:#2e9e4f;border-color:#2e9e4f;color:#fff;opacity:1}
+.checkEdit{list-style:none;margin:0;padding:0;display:grid;gap:4px}
+.checkEdit li{display:flex;align-items:center;gap:8px;border:1px solid var(--line);background:var(--panel2);border-radius:12px;padding:4px 4px 4px 10px}
+.checkEdit label{flex:1;display:flex;align-items:center;gap:8px;font-size:14px}
+.checkEdit input{width:18px!important;height:18px;min-height:0!important;margin:0;accent-color:var(--orange)}
+.checkEdit .mini{background:var(--paper);border:1px solid var(--line);color:var(--ink);height:32px}
+/* Bar order in category picker */
+.pickOrder{display:grid;gap:6px;margin:8px 0}
+.orderRow{display:flex;align-items:center;gap:8px;border:1px solid var(--line);background:var(--panel2);border-radius:12px;padding:5px 6px 5px 10px}
+.orderRow .num{width:22px;height:22px;border-radius:50%;background:var(--orange);color:#fff;display:grid;place-items:center;font-size:12px;font-weight:950}
+.orderRow .on{flex:1;font-weight:800}
+.orderRow .mini{background:var(--paper);border:1px solid var(--line);color:var(--ink);height:32px;min-width:36px}
+.orderRow .mini:disabled{opacity:.3}
+/* Crowded bar: smaller items so labels don't collide */
+.nav.compact .navItem{flex-basis:48px;font-size:9.5px;padding:7px 2px}
+.nav.compact .navItem .ic{font-size:16px}
+.nav.compact .navItem .nl{max-width:52px}
+/* Photos / videos */
+.mediaRow{display:flex;gap:8px;overflow-x:auto;padding:2px 0 4px;scrollbar-width:none}
+.thumb{position:relative;flex:0 0 72px;height:72px;border:0;border-radius:14px;overflow:hidden;padding:0;background:rgba(0,0,0,.55);color:#fff}
+.thumb img{width:100%;height:100%;object-fit:cover;display:block}
+.thumb .play{position:absolute;inset:0;display:grid;place-items:center;font-size:24px}
+.thumb .tag{position:absolute;left:4px;bottom:4px;font-size:9.5px;font-weight:900;padding:2px 5px;border-radius:99px;background:rgba(0,0,0,.65);color:#fff}
+.thumb.proof .tag{background:#2e9e4f}
+.thumb.missing::after{content:"☁";position:absolute;inset:0;display:grid;place-items:center;font-size:22px;opacity:.8}
+.mediaView{border-radius:16px;overflow:hidden;background:#000;display:grid;place-items:center;max-height:62vh}
+.mediaView img,.mediaView video{max-width:100%;max-height:62vh;display:block}
+.formMedia{display:flex;flex-wrap:wrap;gap:6px}
+.fm{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);background:var(--panel2);border-radius:99px;padding:3px 3px 3px 10px;font-size:13px;font-weight:700}
+.fm .mini{height:26px;min-width:26px;background:var(--paper);border:1px solid var(--line);color:var(--ink)}
+/* Fields filled by voice flash once */
+.filled{animation:filled 1.6s ease}
+@keyframes filled{0%,40%{box-shadow:0 0 0 3px var(--orange);background:color-mix(in srgb,var(--orange) 14%,var(--panel2))}}
+/* Compact cards + card modal */
+.task.compact{cursor:pointer;transition:transform .12s ease}
+.task.compact:active{transform:scale(.98)}
+.task .chev{font-size:15px;opacity:.6;margin-left:auto;padding-left:6px}
+.task .hint{margin-right:auto;font-size:12px;opacity:.6;align-self:center}
+.task .moreIn{display:flex;flex-direction:column;gap:6px}
+.task .more-actions{justify-content:flex-start;padding-top:2px}
+.task.compact:focus-visible{outline:3px solid var(--orange);outline-offset:2px}
+.item[data-open]{cursor:pointer}
+.cardDialog{background:transparent;box-shadow:none;width:min(94vw,560px);overflow:visible;padding:0}
+.cardDialog .task{box-shadow:0 30px 90px rgba(0,0,0,.45);max-height:86vh;overflow:auto;padding:18px 16px 16px;border-radius:26px}
+.cardDialog .task h3{font-size:22px}
+.cardDialog .taskHead{padding-right:46px;align-items:center}
+.cardClose{position:absolute;top:10px;right:10px;z-index:2;background:rgba(255,255,255,.9);color:#111;border:0}
+.cardDialog.pop{animation:cardPop .26s cubic-bezier(.2,.9,.25,1.15)}
+@keyframes cardPop{from{opacity:0;transform:scale(.6)}to{opacity:1;transform:none}}
+.cardDialog::backdrop{background:rgba(0,0,0,.55);backdrop-filter:blur(6px)}
+@media (prefers-reduced-motion:reduce){.cardDialog.pop{animation:none}.task.compact{transition:none}}
+/* Bills */
+.money{display:flex;align-items:center;border:1px solid var(--line);background:var(--panel2);border-radius:14px;padding-left:12px}
+.money span{font-weight:900;color:var(--ink);font-size:16px}
+.form .money input{border:0;background:transparent;font-size:18px;font-weight:800;color:var(--ink)}
+.chip.amt{font-weight:900}
+.billBox{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:8px;margin:0 0 12px}
+.billBox>div{border:1px solid var(--line);background:var(--panel2);border-radius:16px;padding:10px 12px}
+.billBox .sub{display:block;font-size:12px}.billBox b{font-size:20px;letter-spacing:-.02em}
+.billBox .ok{color:#2e9e4f}.billBox .bad{color:var(--red)}
+/* Links & apps on cards */
+.linkIn{display:flex;align-items:center;gap:6px;border:1px solid var(--line);background:var(--panel2);border-radius:14px;padding-left:12px}
+.form .linkIn input{border:0;background:transparent;min-width:0;flex:1}
+.linkPicks{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.linkPicks button{font-size:12px;padding:6px 10px;border-radius:999px;background:var(--panel2);border:1px solid var(--line);color:var(--ink);font-weight:800;cursor:pointer}
+.linkPicks button.on{background:var(--ink);color:#fff}
+.appRow{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:8px}
+.ghost.sm{padding:8px 12px;font-size:13px;border-radius:12px}
+.appChosen{display:inline-flex;align-items:center;gap:6px;padding:6px 6px 6px 10px;border-radius:999px;background:var(--ink);color:#fff;font-weight:850;font-size:13px}
+.appChosen button{border:0;background:rgba(255,255,255,.2);color:#fff;border-radius:50%;width:24px;height:24px;font-weight:900;cursor:pointer}
+.appSearch{width:100%;margin-top:6px;padding:12px;border-radius:14px;border:1px solid var(--line);background:var(--panel2);color:var(--ink);font-size:16px}
+.appList{display:grid;gap:6px;max-height:55vh;overflow:auto;margin-top:10px}
+.appItem{display:flex;align-items:center;gap:10px;text-align:left;padding:10px;border-radius:12px;border:1px solid var(--line);background:var(--panel2);color:var(--ink);font-weight:800;cursor:pointer}
+.appIco{width:30px;height:30px;flex:0 0 30px;border-radius:9px;background:var(--orange);color:#fff;display:grid;place-items:center;font-weight:950}
+.taskActions{flex-wrap:wrap;align-items:center}
+.mini.linkBtn{text-decoration:none;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-right:auto}
+.task.compact .mini.linkBtn{max-width:60%}
+.mini.dirBtn{margin-right:auto}
+.mini.linkBtn+.mini.dirBtn{margin-right:auto}
+.taskActions .mini.linkBtn:has(+.mini.dirBtn){margin-right:0}
+#travelRow{display:grid;gap:10px}
+#flightInput,[name=terminal]{text-transform:uppercase;font-weight:800}
+#confInput{text-transform:uppercase;letter-spacing:.08em;font-weight:800}
+.chip.conf{font-weight:900;letter-spacing:.05em}
+.chip.st-paid{background:#2e9e4f;color:#fff;border-color:transparent;font-weight:900}
+.chip.st-due{font-weight:900}
+.billBar{height:10px;border-radius:99px;background:rgba(0,0,0,.12);overflow:hidden;min-width:0}
+.billBar span{display:block;height:100%;background:#2e9e4f;border-radius:99px;transition:width .3s}
+.billBar.over span{background:var(--red)}
+.task.dark .billBar{background:rgba(255,255,255,.28)}
+.billProg{margin-top:10px}
+.billNums{font-size:13px;margin-top:5px;line-height:1.35}
+.billNums b{font-weight:900}
+.billBox .billBar{grid-column:1/-1}
+.chip.st-part{background:#ffd23f;color:#1b1407;border-color:transparent;font-weight:900}
+.chip.st-late{background:var(--burg);color:#fff;border-color:transparent;font-weight:900}
+.payHist{margin:8px 0 0;padding:0;list-style:none;display:grid;gap:4px;font-size:13px}
+.payHist li{display:flex;gap:8px;flex-wrap:wrap}.payHist b{font-weight:900}
+.entered{font-size:12px;opacity:.85;margin-top:6px}
+.billBox .wide{grid-column:1/-1;display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+.billBox .wide b{font-size:16px}
+.item.checkin{border-left-color:#2f6fd0;border-left-style:dashed}
+#packBtn{justify-self:start}
+/* Proof review */
+.proofPeek{display:flex;gap:10px;align-items:center;margin-top:8px;padding:8px;border-radius:16px;background:rgba(255,255,255,.55);border:1px solid rgba(0,0,0,.08)}
+.task.dark .proofPeek{background:rgba(255,255,255,.16);border-color:rgba(255,255,255,.2)}
+.proofPeek .thumb{flex:0 0 96px;height:96px}
+.proofPeek .pInfo{display:grid;gap:6px;min-width:0;flex:1}
+.proofPeek .pBtns{display:flex;gap:6px;flex-wrap:wrap}
+.chip.rv-wait{background:#ffd23f;color:#1b1407;border-color:transparent;font-weight:900}
+.chip.rv-ok{background:#2e9e4f;color:#fff;border-color:transparent;font-weight:900}
+.chip.rv-redo{background:var(--orange);color:#fff;border-color:transparent;font-weight:900}
+.keepNote{font-size:12px;opacity:.85}
+
+/* Bottom nav + FAB */
+.bottom{position:fixed;left:50%;bottom:0;transform:translateX(-50%);width:min(100%,740px);z-index:30;padding:10px 12px calc(10px + env(safe-area-inset-bottom))}
+.nav{display:flex;overflow-x:auto;scrollbar-width:none;gap:6px;background:rgba(17,17,17,.92);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border:1px solid rgba(255,255,255,.14);border-radius:26px;padding:8px;box-shadow:0 -8px 38px rgba(0,0,0,.25)}
+.nav::-webkit-scrollbar{display:none}
+.fab{position:fixed;right:18px;bottom:calc(var(--nav) + 14px + env(safe-area-inset-bottom));z-index:31;width:60px;height:60px;border:0;border-radius:22px;background:var(--orange);color:white;font-size:32px;box-shadow:var(--shadow)}
+/* Dialogs */
+dialog{border:0;border-radius:26px;padding:0;width:min(94vw,560px);max-height:92vh;background:var(--panel);color:var(--ink);box-shadow:0 40px 120px rgba(0,0,0,.45)}
+dialog::backdrop{background:rgba(0,0,0,.48);backdrop-filter:blur(5px)}
+.dialogIn{padding:16px}
+.dialogHead{display:flex;align-items:center;gap:8px;margin-bottom:10px}.dialogHead h2{margin:0;font-size:21px;letter-spacing:-.04em;flex:1}
+.form{display:grid;gap:9px}
+.form input,.form select,.form textarea,.field input,.field select{width:100%;border:1px solid var(--line);background:var(--panel2);border-radius:14px;padding:11px;outline:0;min-height:44px}
+.form textarea{min-height:70px;resize:vertical}
+.form .two{display:grid;grid-template-columns:1fr 1fr;gap:9px}
+.form .lbl{display:grid;gap:4px;font-size:12px;color:var(--muted);font-weight:800}
+.toggle{display:flex;align-items:center;gap:10px;border:1px solid var(--line);background:var(--panel2);border-radius:14px;padding:11px;font-weight:800}
+.toggle input{width:20px;height:20px;min-height:0;margin:0;accent-color:var(--orange)}
+.group{display:grid;gap:9px;border:1px dashed var(--line);border-radius:18px;padding:10px}
+.groupLbl{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);font-weight:900}
+.toolMenu{display:grid;gap:6px;border:1px solid var(--line);background:var(--panel2);border-radius:18px;padding:8px;margin-bottom:10px;box-shadow:0 14px 34px rgba(0,0,0,.14)}
+.toolItem{display:grid;grid-template-columns:34px 1fr;gap:2px 8px;align-items:center;text-align:left;border:0;background:transparent;border-radius:13px;padding:9px}
+.toolItem:hover,.toolItem:focus-visible{background:color-mix(in srgb,var(--orange) 12%,transparent)}
+.toolItem .ti{grid-row:span 2;font-size:20px;text-align:center}.toolItem strong{font-size:14px}.toolItem span{font-size:12px;color:var(--muted)}
+.toolItem.on{outline:0;background:color-mix(in srgb,var(--green) 16%,transparent)}
+.voiceBar{display:flex;gap:10px;align-items:center;border-radius:14px;padding:10px 12px;background:var(--black);color:#fff;margin-bottom:10px}
+.voiceBar .pulse{width:12px;height:12px;border-radius:50%;background:var(--red);animation:p 1s infinite}
+@keyframes p{50%{opacity:.25}}
+.voiceBar span{flex:1;font-size:14px}
+.voiceBar button{border:0;border-radius:10px;padding:6px 10px;font-weight:900}
+.clearList{display:grid;gap:8px}
+.clearList button{text-align:left;display:flex;justify-content:space-between;align-items:center}
+.toast{position:fixed;left:50%;bottom:calc(var(--nav) + 12px);transform:translateX(-50%);background:var(--black);color:white;padding:12px 16px;border-radius:99px;box-shadow:var(--shadow);z-index:60;opacity:0;pointer-events:none;transition:.25s;max-width:92vw;text-align:center}
+.toast.show{opacity:1;bottom:calc(var(--nav) + 28px)}
+.settingsSec{border-top:1px solid var(--line);padding-top:12px;margin-top:12px}
+.settingsSec h3{margin:0 0 8px;font-size:15px}
+@media(max-width:480px){.catbar{margin:0 -12px;padding-left:12px;padding-right:12px;scroll-padding:0 12px}}
+@media(max-width:480px){.fab{width:48px;height:48px;border-radius:16px;font-size:26px;bottom:calc(var(--nav) - 6px + env(safe-area-inset-bottom))}.fuelMapWrap{margin-left:-12px;margin-right:-12px;border-radius:0;border-left:0;border-right:0}}
+@media(max-width:480px){.app{padding:0 12px}.top{margin:0 -12px;padding:10px 12px}.taskGrid{grid-template-columns:1fr}.day{padding:8px 2px}.day strong{font-size:18px}.item{grid-template-columns:74px 1fr auto;padding:9px 10px}.card{padding:14px}.form .two{grid-template-columns:1fr}}
+.wkTiles{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin:0 0 6px}
+.wkTile{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:12px}
+.wkTile span,.wkGrid span{display:block;font-size:12px;color:var(--muted);font-weight:800}
+.wkTile strong{font-size:20px;letter-spacing:-.03em}
+.wkTile.over strong{color:#2e9e4f}
+.wkJobs{display:grid;gap:10px}
+.wkJobHead{display:flex;justify-content:space-between;align-items:baseline;gap:8px;margin-bottom:10px;font-size:17px}
+.wkGrid{display:grid;grid-template-columns:repeat(2,1fr);gap:8px 12px}
+.wkGrid b{font-size:15px}
+.wkList{display:grid;gap:4px;padding:6px 10px}
+.wkRow{display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid var(--line)}
+.wkRow:last-child{border-bottom:0}
+.fuThumb{width:56px;height:56px;flex:0 0 56px;object-fit:cover;border-radius:10px;border:1px solid var(--line);cursor:zoom-in;background:var(--line)}
+.fuPh{display:flex;align-items:center;justify-content:center;font-size:24px;cursor:default}
+.vehRail{display:flex;gap:12px;overflow-x:auto;scroll-snap-type:x mandatory;-webkit-overflow-scrolling:touch;scrollbar-width:none;overscroll-behavior-x:contain;padding:2px 2px 4px}
+.vehRail::-webkit-scrollbar{display:none}
+.vehCard{flex:0 0 100%;scroll-snap-align:start;box-sizing:border-box;padding:0;margin:0;background:none;border:0;box-shadow:none}
+.vehRail.many .vehCard{flex-basis:86%}
+.vehThumb{width:100%;height:150px;flex:none;border-radius:12px;object-fit:cover;display:block;cursor:pointer}
+.vehThumb.fuPh{display:flex;align-items:center;justify-content:center;font-size:44px}
+.vehBody{display:flex;align-items:center;gap:8px;margin-top:10px}
+.vehDots{display:flex;justify-content:center;gap:6px;margin-top:8px}
+.vehDots i{width:7px;height:7px;border-radius:50%;background:var(--line)}
+.vehDots i.on{background:currentColor;opacity:.75}
+.pill{display:inline-flex;align-items:center;gap:4px;padding:5px 11px;border-radius:999px;background:rgba(255,255,255,.7);border:1px solid rgba(0,0,0,.14);font-size:12px;font-weight:700;color:inherit;text-decoration:none;cursor:pointer;white-space:nowrap;font-family:inherit}
+.rewardLink{border-color:#f5b301;background:#fff4cc}
+.pill,.starBtn{color:#1d1d1d}
+.rewardLink{color:#1d1400}
+.stRow .chip{color:#1d1d1d}
+[data-theme=dark] .pill,[data-theme=dark] .starBtn{background:rgba(255,255,255,.14);border-color:rgba(255,255,255,.24);color:var(--ink)}
+[data-theme=dark] .rewardLink{background:rgba(245,179,1,.22);border-color:#f5b301;color:#ffe9a6}
+[data-theme=dark] .starBtn.on{background:#f5b301;border-color:#f5b301;color:#1d1400}
+[data-theme=dark] .stRow .chip{background:rgba(255,255,255,.16);color:var(--ink)}
+.pills{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
+.fuelMapWrap{position:relative;border-radius:16px;overflow:hidden;border:1px solid var(--line);margin-bottom:12px}
+.fuelLocate{position:absolute;right:10px;bottom:34px;z-index:1000;box-shadow:0 2px 8px rgba(0,0,0,.25);background:#fff;color:#1d1d1d}
+[data-theme=dark] .fuelLocate{background:#22222a;color:var(--ink)}
+.fuelSearchArea{position:absolute;top:10px;left:50%;transform:translateX(-50%);z-index:1000;box-shadow:0 2px 8px rgba(0,0,0,.25);background:#fff;color:#1d1d1d;white-space:nowrap}
+.fuelSearchArea[hidden]{display:none}
+[data-theme=dark] .fuelSearchArea{background:#22222a;color:var(--ink)}
+#fuelMap{height:280px;width:100%}
+.findRow{display:grid;grid-template-columns:1fr 1fr;gap:8px;align-items:start}
+.findRow select{width:100%;min-width:0;box-sizing:border-box}
+#fuelMap.snap{transition:height .2s ease}
+.fuelGrip{display:flex;align-items:center;justify-content:center;gap:8px;padding:6px 8px 10px;margin:-4px 0 6px;font-size:12px;color:var(--muted);touch-action:none;user-select:none}
+.fuelGrip::before{content:"";width:44px;height:5px;border-radius:3px;background:var(--line)}
+.fuelDist{display:grid;gap:4px;font-size:12px;color:var(--muted);font-weight:800;margin-top:8px}
+.fuelDist input{width:100%}
+.pinWrap{background:none;border:0}
+.pricePin{transform:translate(-50%,-50%);background:#111;color:#fff;font-weight:800;font-size:12px;padding:4px 7px;border-radius:999px;white-space:nowrap;box-shadow:0 2px 8px rgba(0,0,0,.3)}
+.pricePin.cheap{background:#1f9d55}
+.pricePin.none{background:#6b6b6b}
+.stRow{align-items:flex-start}
+.favBtns{display:flex;flex-direction:column;gap:6px;flex:0 0 auto}
+.starBtn{font-size:12px;font-weight:700;padding:5px 9px;border-radius:999px;border:1px solid rgba(0,0,0,.14);background:rgba(255,255,255,.6);color:inherit;white-space:nowrap;cursor:pointer}
+.starBtn.on{background:#f5b301;border-color:#f5b301;color:#1d1400}
+.vdNav{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:0 0 8px}
+.wkRow>div:first-child{flex:1;min-width:0;display:grid;gap:2px}
+.wkRow .sub{font-size:12px}
+.wkRow input[type=checkbox]{width:20px;height:20px;flex:none}
+.wkSearch{margin:10px 0}.wkSearch input{width:100%}
+.wkBulk{display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:4px 0 10px;border-bottom:1px solid var(--line)}
+.wkBulk .sub{font-size:12px}
+.wkBulkBtns{display:flex;gap:6px;margin-left:auto;flex-wrap:wrap}
+.wkAll{display:flex;align-items:center;gap:6px;font-weight:800;font-size:14px}
+.wkAll input{width:20px;height:20px}
+.wkJobBtns{display:grid;gap:6px;flex:none}
+.wkAmt{text-align:right;display:grid;gap:2px;white-space:nowrap}
+@media (min-width:700px){.wkTiles{grid-template-columns:repeat(4,1fr)}.wkJobs{grid-template-columns:repeat(2,1fr)}}
+.wkGlance .wkTile{display:grid;gap:4px}
+.wkPeriod{margin:10px 0}
+.wkNav{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px;text-align:center}
+.wkNav strong{font-size:17px}
+.wkSegs{display:flex;gap:6px;margin:0 0 12px}
+.wkSegs button{flex:1;padding:8px 6px}
+.wkPeriod .wkTiles{margin-bottom:8px}
+.pricePin.brand{font-weight:800;border-width:2px}
+.pricePin.brand b{font-weight:900;margin-right:2px}
+.card,.wkRow,.wkRow>div,.stRow,.stRow>div,.vehCard,.wkJob{min-width:0;max-width:100%;overflow-wrap:anywhere}
+/* ---- Accents and a frameless look: no bezels, separation comes from fills and spacing ---- */
+:root{--accent:#0f766e;--accent-2:#4f46e5;--accent-soft:rgba(15,118,110,.12);--accent-ink:#ffffff;--line:transparent}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--accent:#2dd4bf;--accent-2:#818cf8;--accent-soft:rgba(45,212,191,.14);--accent-ink:#06201d}}
+[data-theme=dark]{--accent:#2dd4bf;--accent-2:#818cf8;--accent-soft:rgba(45,212,191,.14);--accent-ink:#06201d;--line:transparent}
+body{background:radial-gradient(circle at 0 0,var(--accent-soft),transparent 34%),radial-gradient(circle at 100% 15%,rgba(79,70,229,.10),transparent 28%),var(--paper)}
+.primary{background:var(--accent);color:#fff;border:0}
+[data-theme=dark] .primary{background:var(--accent);color:#06201d}
+[data-theme=dark] .cat.active,[data-theme=dark] .seg button.active{background:var(--accent-2);color:#0b0b12}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]) .primary{background:var(--accent);color:#06201d}:root:not([data-theme="light"]) .cat.active,:root:not([data-theme="light"]) .seg button.active{background:var(--accent-2);color:#0b0b12}}
+.cat.active,.seg button.active{background:var(--accent-2);color:#fff;border-color:transparent}
+.card,.fuelMapWrap,.toolItem,.wkTile,.vehCard,.dialogIn,dialog{border:0 !important;box-shadow:none}
+button,.pill,.ghost,.iconbtn,.chip{border:0 !important}
+button.ghost,.pill,.chip,.iconbtn{background:var(--paper)}
+input:not([type=checkbox]):not([type=radio]),select,textarea{border:0 !important;background:var(--paper);color:var(--ink)}
+.top{border-bottom:0}
+:focus-visible{outline:2px solid var(--accent-2);outline-offset:2px}
+.pwRow{display:flex;gap:8px;align-items:center}
+/* Fuel map pins: location pin with a fuel icon; the tip sits on the station */
+.fuelView{position:absolute;top:10px;left:10px;z-index:500;background:var(--panel);box-shadow:0 1px 4px rgba(0,0,0,.25)}
+.fpin{position:relative;display:flex;flex-direction:column;align-items:center;transform:translate(-50%,-100%)}
+.fpinHead{width:32px;height:32px;border-radius:50% 50% 50% 0;transform:rotate(-45deg);display:grid;place-items:center;box-shadow:0 2px 6px rgba(0,0,0,.28);border:2px solid #fff}
+.fpinHead span{transform:rotate(45deg);font-size:15px;line-height:1}
+.fpinLbl{margin-bottom:4px;padding:2px 7px;border-radius:999px;background:var(--panel);color:var(--ink);font-size:12px;font-weight:800;white-space:nowrap;box-shadow:0 1px 4px rgba(0,0,0,.2)}
+.fpin.cheap .fpinLbl{background:#16a34a;color:#fff}
+/* Station pills take the brand colour (set per station), so no black pills */
+#fuelBody .brandPills .pill{background:var(--pill-bg,var(--accent-soft));color:var(--pill-fg,var(--ink));border:0}
+/* Around me: every pill and chip uses the soft accent, not black */
+#fuelBody .pill,#fuelBody .chip,#fuelBody .cat:not(.active),#fuelBody .starBtn{background:var(--accent-soft);color:var(--ink);border:0}
+#fuelBody .cat.active{background:var(--accent-2);color:#fff}
+#fuelBody .brandPills .pill.rewardLink{background:var(--pill-bg,var(--accent-soft));color:var(--pill-fg,var(--ink))}.pwRow input{flex:1;min-width:0}
+.settingsAcct{margin:0 0 14px;padding-bottom:12px;border-bottom:1px solid var(--line)}.settingsAcct .row{flex-wrap:wrap}.settingsAcct .row button{flex:1 1 auto}.wkPick{cursor:pointer;align-items:center}.wkBox{width:22px;height:22px;border-radius:7px;flex:none;display:grid;place-items:center;background:var(--accent-soft);color:var(--accent);font-weight:900}.wkPick.on .wkBox{background:var(--accent-2);color:#fff}.wkPick.on{background:var(--accent-soft);border-radius:12px;padding-left:8px;padding-right:8px}.wkBulkOn{background:var(--accent-soft);border-radius:14px;padding:8px 10px;border-bottom:0}.wkSecHead{all:unset;display:flex;justify-content:space-between;align-items:center;width:100%;box-sizing:border-box;font-weight:800;font-size:16px;margin:12px 0 6px;cursor:pointer}.wkJob{border-bottom:1px solid var(--line);padding:8px 0}.wkJobHead{all:unset;display:flex;gap:8px;align-items:center;width:100%;box-sizing:border-box;cursor:pointer}.wkJobTxt{flex:1;min-width:0;display:grid;gap:2px}.wkChev{font-weight:900;color:var(--muted)}.wkJobBody{display:grid;gap:6px;padding:8px 0 2px}.wkSub{margin-top:8px;font-size:13px}.wkJobBody .wkRow{padding:4px 0}.pricePhoto{margin:10px 0}.pricePhoto img{display:block;width:100%;max-height:220px;object-fit:cover;border-radius:12px;margin-top:8px}
+#accountBtn{white-space:nowrap;padding:6px 10px}
+/* Dark mode: chips and badges on light cards need dark text (cream text vanished on light blue) */
+[data-theme=dark] .task:not(.dark) .chip,[data-theme=dark] .task:not(.dark) .mini,[data-theme=dark] .task:not(.dark) .badge{background:rgba(255,255,255,.78);color:#111;border-color:transparent}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]) .task:not(.dark) .chip,:root:not([data-theme="light"]) .task:not(.dark) .mini,:root:not([data-theme="light"]) .task:not(.dark) .badge{background:rgba(255,255,255,.78);color:#111;border-color:transparent}}
+.clkStrip{display:grid;gap:6px;margin-top:8px}.clkRow{display:flex;gap:6px;overflow-x:auto;white-space:nowrap;scrollbar-width:none;padding:2px 1px}.clkRow::-webkit-scrollbar{display:none}.clkPlace{flex:none;display:inline-flex;align-items:center;gap:5px;padding:6px 11px;border-radius:999px;border:0;background:var(--accent-soft);color:var(--ink);font-size:13px;font-weight:700;cursor:pointer}.clkPlace.on{background:var(--accent);color:var(--accent-ink)}.clkPlace strong{font-weight:800}.clkT{font-size:11px;opacity:.75}.clkWx{font-weight:700}.clkRm{background:transparent;color:var(--muted);border:1px solid var(--line)}.clkLoc{all:unset;cursor:pointer;font-weight:700}.clkAdd{display:grid;gap:8px;padding:4px 0}.clkSearch{display:flex;gap:6px}.clkSearch input{flex:1;min-width:0}.clkRes{display:grid;gap:4px}.clkRes button{all:unset;box-sizing:border-box;padding:9px 12px;border-radius:12px;background:var(--accent-soft);cursor:pointer;color:var(--ink)}.clkRes .sub{font-size:12px}.clkFc{margin:12px 0}.clkFcHead{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}.clkFcGrid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:4px}.clkFcDay{display:grid;justify-items:center;gap:4px;font-size:12px;padding:8px 2px;border-radius:12px;background:var(--accent-soft);text-align:center}.clkFcIco{font-size:20px;line-height:1}.clkFcDay{cursor:pointer;color:var(--ink);font:inherit}.clkFcDay.on{background:var(--accent);color:var(--accent-ink)}.clkHrs{display:flex;gap:6px;overflow-x:auto;margin-top:8px;padding-bottom:4px;scrollbar-width:thin}.clkHr{flex:none;display:grid;justify-items:center;gap:3px;padding:8px 9px;border-radius:12px;background:var(--accent-soft);font-size:12px;text-align:center}.clkWeekNav{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px}.clkWeekNav button:disabled{opacity:.3}#clkFcGrid{touch-action:pan-y}.pricePhotoBtns{display:flex;gap:8px;flex-wrap:wrap}</style>
+</head>
+<body>
+<div id="splash" aria-hidden="true"><div class="splashIn"><img src="icons/icon-512.png" alt=""><b>Kayaos.space</b><span>Control the chaos</span></div></div>
+<div class="app">
+<header class="top">
+  <div class="toprow">
+    <h1 class="viewTitle" id="viewTitle">Cards</h1>
+    <div class="topActions">
+      <button class="installBtn" id="installBtn" hidden>⤓ Install</button>
+      <button class="ghost" id="accountBtn" hidden style="padding:6px 10px">Sign in</button>
+      <button class="iconbtn" id="settingsBtn" aria-label="Settings and account">⚙</button>
+      <button class="iconbtn" id="themeBtn" aria-label="Toggle dark mode">◐</button>
+    </div>
+  </div>
+  <div id="clockCard"></div>
+</header>
+
+<main>
+  <div id="clockForecast"></div>
+  <!-- CARDS: everything, filterable -->
+  <section class="view active" data-view="cards">
+    <div class="statRow" id="statRow"></div>
+    <label class="search">⌕ <input id="searchInput" type="search" placeholder="Search cards, places, notes..."></label>
+    <div class="catbar" id="catbar"></div>
+    <div class="sectionHead"><h2 id="taskTitle">Cards</h2><div class="row"><span class="sub" id="taskCount"></span><button class="iconbtn" data-act="clearMenu" aria-label="Clear cards">⋯</button></div></div>
+    <div id="billSum" hidden></div>
+    <div class="taskGrid" id="taskGrid"></div>
+  </section>
+
+  <!-- WEEK: 7-day overview -->
+  <section class="view" data-view="week">
+    <div class="sectionHead"><button class="iconbtn" data-act="weekPrev" aria-label="Previous week">‹</button><div class="center"><h2 id="weekLabel"></h2><button class="linkBtn" data-act="weekNow">This week</button></div><button class="iconbtn" data-act="weekNext" aria-label="Next week">›</button></div>
+    <div class="week" id="week"></div>
+    <div class="agenda" id="agenda"></div>
+  </section>
+
+  <!-- DAY: one day's timeline -->
+  <section class="view" data-view="day">
+    <div class="sectionHead"><button class="iconbtn" data-act="dayPrev" aria-label="Previous day">‹</button><div class="center"><h2 id="dayLabel"></h2><button class="linkBtn" data-act="dayToday">Today</button></div><button class="iconbtn" data-act="dayNext" aria-label="Next day">›</button></div>
+    <div class="timeline" id="timeline"></div>
+  </section>
+
+  <!-- SCHOOL: assignments with personal audible alerts -->
+  <section class="view" data-view="school">
+    <div class="card schoolHead">
+      <div class="sectionHead" style="margin-top:0"><h2>School work</h2><span class="sub" id="schoolSummary"></span></div>
+      <label class="field">Student name (spoken in voice alerts)<input id="studentName" autocomplete="off" placeholder="e.g. Jayden"></label>
+      <div class="row" style="margin-top:10px"><button class="primary" data-act="addAssignment">+ Assignment</button><button class="ghost" data-act="whatsDue">🔊 What's due</button><button class="ghost" data-act="testStudent">Test alert</button></div>
+      <p class="sub alertHint">Assignments chime and speak to the student by name, then keep reminding until they're marked done. Alerts play while Kayaos is open on that device — keep it installed and open on his phone or tablet during homework time.</p>
+    </div>
+    <div class="sectionHead"><h2>Assignments</h2><span class="sub" id="schoolCount"></span></div>
+    <div class="taskGrid" id="schoolGrid"></div>
+  </section>
+
+  <!-- WORK: hours, pay rate, earnings and payments per job -->
+  <section class="view" data-view="work">
+    <div class="card schoolHead">
+      <div class="sectionHead" style="margin-top:0"><h2>Work</h2><span class="sub" id="workSub"></span></div>
+      <div class="row" style="margin-top:10px"><button class="primary" data-wk="card">+ Work card</button><button class="ghost" data-wk="pay">+ Payment</button><button class="ghost" data-wk="jobs">Jobs &amp; rates</button><button class="ghost" data-wk="workSync">☁ Sync now</button><button class="ghost" data-wk="import">📥 Import text</button><button class="ghost" data-wk="csv">Export CSV</button></div>
+      <p class="sub alertHint">Log each shift once, as a Work card (hours or a flat pay, and the job). It shows up here automatically. Payments you receive go under + Payment.</p>
+    </div>
+    <div id="workBody"></div>
+  </section>
+
+  <!-- BILLS: one card per bill; payments are recorded on the bill or here -->
+  <section class="view" data-view="bills">
+    <div class="card schoolHead">
+      <div class="sectionHead" style="margin-top:0"><h2>Bills</h2><span class="sub" id="billsSub"></span></div>
+      <div class="row" style="margin-top:10px"><button class="primary" data-bl="add">+ Bill</button></div>
+      <p class="sub alertHint">Each bill is one card. Partial payments and installments count here and on the card, so you only enter them once.</p>
+    </div>
+    <div id="billsBody"></div>
+  </section>
+
+  <!-- FUEL: optional (Settings) -->
+  <section class="view" data-view="fuel">
+    <div id="fuelMapWrap" class="fuelMapWrap" hidden><div id="fuelMap"></div><button class="pill fuelView" id="fuelViewBtn" type="button" data-fu="mapView">🛰️ Satellite</button><button class="pill fuelSearchArea" id="fuelSearchArea" type="button" hidden>🔎 Search this area</button><button class="pill fuelLocate" id="fuelLocate" type="button">📍 My location</button></div>
+    <div id="fuelGrip" class="fuelGrip" hidden></div>
+    <div id="fuelBody"></div>
+  </section>
+
+  <!-- PLACE: map, tracking, sharing -->
+  <!-- TEAM: shared cards -->
+  <section class="view" data-view="team">
+    <div class="card" id="teamGate"></div>
+    <div id="teamMain" hidden>
+      <div class="catbar" id="teamTabs" style="padding-top:0;margin-bottom:10px"></div>
+      <div class="card" id="teamPanel"></div>
+      <div class="catbar" id="teamFilters" style="margin-top:6px"></div>
+      <div class="sectionHead"><h2>Team cards</h2><span class="sub" id="teamCount"></span></div>
+      <div class="taskGrid" id="teamGrid"></div>
+    </div>
+  </section>
+
+  <section class="view" data-view="place">
+    <div class="card">
+      <div class="mapbox" id="mapbox"></div>
+      <p class="sub" id="locStatus">Location tracking is off.</p>
+      <div class="row">
+        <button class="primary" id="trackBtn" data-act="toggleTrack">Start tracking</button>
+        <button class="ghost" data-act="checkOnce">Check in now</button>
+        <button class="ghost" data-act="shareLoc">↗ Share location</button>
+        <a class="navLink" id="navigateLink" target="_blank" rel="noopener">↱ Navigate</a>
+      </div>
+      <h3 class="panelTitle">Recent check-ins</h3>
+      <div class="locList" id="locList"></div>
+    </div>
+  </section>
+</main>
+</div>
+
+<button class="fab" id="fab" aria-label="Add card">+</button>
+<nav class="bottom" aria-label="Main"><div class="nav" id="navBar"></div></nav>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<!-- ADD / EDIT CARD -->
+<dialog id="taskDialog"><div class="dialogIn">
+  <div class="dialogHead"><h2 id="taskDialogTitle">Add card</h2><button class="iconbtn" id="toolsBtn" aria-label="Smart tools" aria-expanded="false" title="Smart tools">🧰</button><button class="iconbtn" data-close aria-label="Close">×</button></div>
+  <div class="toolMenu" id="toolMenu" hidden>
+    <button type="button" class="toolItem" data-tool="voice"><span class="ti">🎙</span><strong>AI voice</strong><span>Speak the card — fills the form for you</span></button>
+    <button type="button" class="toolItem" data-tool="notify"><span class="ti">🔔</span><strong>Notifications</strong><span id="notifyState">Turn on pop-ups + sound</span></button>
+    <button type="button" class="toolItem" data-tool="track"><span class="ti">⌖</span><strong>Location tracking</strong><span id="trackState">Off — check in every 15 min</span></button>
+    <button type="button" class="toolItem" data-tool="share"><span class="ti">↗</span><strong>Share my location</strong><span>Send a map link of where you are</span></button>
+    <button type="button" class="toolItem" data-tool="demo"><span class="ti">✦</span><strong>Load demo cards</strong><span>Sample cards, clearly marked — your cards stay</span></button>
+  </div>
+  <div class="voiceBar" id="voiceBar" hidden><span class="pulse"></span><span id="voiceLive">Listening…</span><button type="button" id="voiceStop">Stop</button></div>
+  <form class="form" id="taskForm" autocomplete="off">
+    <input name="title" required placeholder="What needs doing?">
+    <div class="two">
+      <select name="category" id="categorySelect" aria-label="Category"></select>
+      <input name="forName" placeholder="Alert speaks to (name)" aria-label="Name used in voice alerts">
+    </div>
+    <div class="two" id="teamFields" hidden>
+      <label class="lbl">Share with<select name="team" id="teamSelect"></select></label>
+      <label class="lbl">Assign to<select name="assignee" id="assigneeSelect"></select></label>
+    </div>
+    <input name="custom" id="customCat" placeholder="Custom category name" hidden>
+    <label class="lbl" id="amountRow" hidden>Payment amount
+      <div class="money"><span>$</span><input name="amount" type="number" inputmode="decimal" min="0" step="0.01" placeholder="0.00"></div>
+    </label>
+    <div class="lbl" id="workRow" hidden>
+      <label class="lbl">Job (sets the hourly rate)<select name="wJob"></select></label>
+      <div class="two">
+        <label class="lbl">Hours<input name="wHours" type="number" inputmode="decimal" min="0" max="48" step="0.25" placeholder="e.g. 2"></label>
+        <label class="lbl">Flat pay (optional)<div class="money"><span>$</span><input name="wFlat" type="number" inputmode="decimal" min="0" step="0.01" placeholder="0.00"></div></label>
+      </div>
+      <div class="two">
+        <label class="lbl">Start<input name="wStart" type="time"></label>
+        <label class="lbl">End<input name="wEnd" type="time"></label>
+      </div>
+      <label class="lbl">Unpaid break (minutes)<input name="wBreak" type="number" inputmode="numeric" min="0" max="600" step="5" placeholder="0"></label>
+      <p class="sub">Enter Hours, or Start and End (hours are worked out from the times). Flat pay replaces hours × rate. Overtime is set per job under Jobs &amp; rates.</p>
+    </div>
+    <div class="lbl" id="linkRow"><span id="linkLbl">Website link</span>
+      <div class="linkIn"><span aria-hidden="true">🔗</span><input name="link" id="linkInput" type="text" inputmode="url" autocomplete="off" autocapitalize="off" spellcheck="false" maxlength="500" placeholder="e.g. school.edu, a recipe, a phone number" aria-labelledby="linkLbl"></div>
+      <div class="linkPicks" id="linkPicks" hidden></div>
+      <div class="appRow" id="appRow" hidden><button type="button" class="ghost sm" id="pickAppBtn">📱 Pick an app on this phone</button><span class="appChosen" id="appChosen" hidden></span></div>
+    </div>
+    <label class="lbl" id="planRow" hidden>Installments <span class="sub">— stops after this many payments (needs a repeat)</span>
+      <input name="installments" type="number" inputmode="numeric" min="0" max="120" step="1" placeholder="e.g. 6 — empty = ongoing"></label>
+    <div id="travelRow" hidden>
+      <div class="two">
+        <label class="lbl">Flight #<input name="flightNo" id="flightInput" maxlength="12" autocapitalize="characters" autocomplete="off" spellcheck="false" placeholder="e.g. DL 1234"></label>
+        <label class="lbl">Terminal<input name="terminal" maxlength="20" autocapitalize="characters" autocomplete="off" placeholder="e.g. S or 3"></label>
+      </div>
+      <label class="lbl">Confirmation #<input name="conf" id="confInput" maxlength="40" autocapitalize="characters" autocomplete="off" spellcheck="false" placeholder="e.g. QX7P2L"></label>
+      <label class="toggle"><input type="checkbox" name="checkin"> ✈️ Remind me to check in 24 hours before</label>
+      <button type="button" class="ghost sm" id="packBtn">🧳 Add a packing list</button>
+    </div>
+    <div class="group">
+      <div class="groupLbl">Start</div>
+      <div class="two">
+        <label class="lbl">Start date<input name="startDate" type="date"></label>
+        <label class="lbl">Start time<input name="startTime" type="time"></label>
+      </div>
+    </div>
+    <label class="toggle"><input type="checkbox" name="hasDue" id="hasDue" checked> Due date &amp; time</label>
+    <div class="group" id="dueGroup">
+      <div class="two">
+        <label class="lbl">Due date<input name="date" type="date"></label>
+        <label class="lbl">Due time<input name="time" type="time"></label>
+      </div>
+      <div class="two">
+        <select name="repeat" aria-label="Repeat"><option value="none">No repeat</option><option value="daily">Repeat daily</option><option value="weekly">Repeat weekly</option><option value="biweekly">Repeat every 2 weeks (bi-weekly)</option><option value="monthly">Repeat monthly</option></select>
+        <select name="reminder" id="reminderSelect" aria-label="Reminder"><option value="0">Alert at due time</option><option value="5">5 min before</option><option value="15" selected>15 min before</option><option value="30">30 min before</option><option value="60">1 hour before</option><option value="120">2 hours before</option><option value="1440">1 day before</option></select>
+      </div>
+      <div class="two">
+        <select name="alert" aria-label="Alert sound"><option value="both">Chime + voice</option><option value="chime">Chime only</option><option value="voice">Voice only</option><option value="silent">Silent (pop-up only)</option></select>
+        <select name="nag" aria-label="Repeat alert"><option value="0">Alert once</option><option value="5">Re-alert every 5 min until done</option><option value="10">Re-alert every 10 min until done</option><option value="15">Re-alert every 15 min until done</option><option value="30">Re-alert every 30 min until done</option></select>
+      </div>
+    </div>
+    <input name="place" placeholder="Place or address (optional)">
+    <label class="toggle"><input type="checkbox" name="attachLoc"> Pin my current location to this card</label>
+    <label class="toggle"><input type="checkbox" name="nearMe"> 📍 Remind me when I'm near this place</label>
+    <label class="toggle"><input type="checkbox" name="proof"> 📸 Require a photo/video as proof to finish</label>
+    <div class="row"><button class="ghost" type="button" id="addHowTo">📷 Add how-to photo / video</button><span id="formMedia" class="formMedia"></span></div>
+    <div class="group">
+      <div class="groupLbl">Checklist (optional) — groceries, packing, steps</div>
+      <div class="row"><input id="checkInput" placeholder="Add items: milk, eggs, bread" style="flex:1;min-width:0" autocomplete="off"><button class="ghost" type="button" id="checkAdd">Add</button></div>
+      <ul class="checkEdit" id="checkEdit"></ul>
+    </div>
+    <textarea name="notes" placeholder="Notes"></textarea>
+    <button class="primary" type="submit" id="saveBtn">Save card</button>
+  </form>
+</div></dialog>
+
+<!-- CREATE / JOIN TEAM -->
+<dialog id="teamDialog"><div class="dialogIn">
+  <div class="dialogHead"><h2 id="teamDialogTitle">Team</h2><button class="iconbtn" data-close aria-label="Close">×</button></div>
+  <form class="form" id="teamForm" autocomplete="off">
+    <label class="lbl" id="teamNameLbl">Team name<input name="tname" maxlength="60" placeholder="Family, Party Bus Crew…"></label>
+    <label class="lbl" id="teamCodeLbl">Invite code<input name="tcode" maxlength="6" placeholder="ABC123" style="text-transform:uppercase;letter-spacing:.25em;font-weight:900"></label>
+    <label class="lbl">Your name on this team<input name="dname" maxlength="40" placeholder="Martin"></label>
+    <button class="primary" type="submit" id="teamSubmit">Create team</button>
+  </form>
+</div></dialog>
+
+<!-- MORE -->
+<dialog id="moreDialog"><div class="dialogIn">
+  <div class="dialogHead"><h2>More</h2><button class="iconbtn" data-close aria-label="Close">×</button></div>
+  <div class="toolMenu" id="moreList" style="box-shadow:none"></div>
+  <button class="primary" type="button" data-more="pick" style="width:100%">Choose bar categories</button>
+</div></dialog>
+
+<dialog id="ownerDialog"><div class="dialogIn">
+  <div class="dialogHead"><h2>👑 Owner dashboard</h2><button class="iconbtn" data-close aria-label="Close">×</button></div>
+  <div class="row" style="margin-bottom:8px"><button class="ghost" type="button" id="ownerRefresh">↻ Refresh</button></div>
+  <div id="ownerBody"></div>
+</div></dialog>
+
+<dialog id="wPayDialog"><form class="dialogIn form" id="wPayForm" method="dialog">
+  <input type="hidden" name="pid">
+  <div class="dialogHead"><h2 id="wPayTitle">Payment received</h2><button type="button" class="iconbtn" data-close aria-label="Close">×</button></div>
+  <label class="lbl">Job<select name="job" required></select></label>
+  <label class="lbl">Amount received<div class="money"><span>$</span><input name="amount" type="number" inputmode="decimal" min="0" step="0.01" placeholder="0.00"></div></label>
+  <label class="lbl">Date received<input name="on" type="date"></label>
+  <label class="lbl">Reference / check # <span class="sub">(optional)</span><input name="ref" maxlength="40" autocomplete="off" spellcheck="false"></label>
+  <label class="lbl">Note <span class="sub">(optional)</span><input name="note" maxlength="120" autocomplete="off"></label>
+  <div class="clearList"><button class="primary" type="submit">✓ Save payment</button><button type="button" class="ghost" id="wPayReset">Reset</button></div>
+</form></dialog>
+
+<dialog id="wJobDialog"><div class="dialogIn">
+  <div class="dialogHead"><h2>Jobs &amp; rates</h2><button class="iconbtn" data-close aria-label="Close">×</button></div>
+  <div id="wJobList"></div>
+  <form class="form" id="wJobForm" style="margin-top:12px">
+    <input type="hidden" name="jid">
+    <label class="lbl">Job name<input name="jname" maxlength="60" required autocomplete="off" placeholder="e.g. Main job"></label>
+    <label class="lbl">Hourly rate ($)<input name="rate" type="number" inputmode="decimal" min="0" step="0.01" required placeholder="0.00"></label>
+    <label class="lbl">Overtime after (hours per week) <span class="sub">(blank = no overtime)</span><input name="otAfter" type="number" inputmode="decimal" min="0" max="168" step="0.5" placeholder="e.g. 40"></label>
+    <label class="lbl">Overtime multiplier<input name="otMult" type="number" inputmode="decimal" min="1" max="5" step="0.05" value="1.5"></label>
+    <div class="row"><button class="primary" type="submit" id="wJobSave">Add job</button><button class="ghost" type="button" id="wJobReset">New job</button></div>
+  </form>
+</div></dialog>
+
+<dialog id="fuelDialog"><form class="dialogIn form" id="fuelForm" method="dialog" novalidate>
+  <input type="hidden" name="editId" value="">
+  <div class="dialogHead"><h2 id="fuelDlgTitle">Fill-up</h2><button type="button" class="iconbtn" data-close aria-label="Close">×</button></div>
+  <label class="lbl">Vehicle<select name="vid" required></select></label>
+  <input type="hidden" name="ftype">
+  <p class="sub" id="fuelTypeLine" style="margin:-4px 0 8px"></p>
+  <label class="lbl">Date<input name="date" type="date" required></label>
+  <div class="two">
+    <label class="lbl"><span id="fuelUnitLbl">Gallons</span><input name="gal" type="number" inputmode="decimal" min="0" step="0.001" placeholder="e.g. 8.5"></label>
+    <label class="lbl">Total paid<div class="money"><span>$</span><input name="total" type="number" inputmode="decimal" min="0" step="0.01" placeholder="0.00"></div></label>
+  </div>
+  <label class="lbl"><span id="fuelPpgLbl">Price per gallon</span> <span class="sub">(optional)</span><div class="money"><span>$</span><input name="ppg" type="number" inputmode="decimal" min="0" step="0.001" placeholder="0.000"></div></label>
+  <p class="sub" id="fuelHint"></p>
+  <label class="lbl">Odometer reading <span class="sub">(optional, for MPG or cost per mile)</span><input name="odo" type="number" inputmode="numeric" min="0" step="1" placeholder="e.g. 84210"></label>
+  <div class="lbl">Photo <span class="sub">(optional, receipt or pump)</span>
+    <div id="fuelPhotoRow" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:6px">
+      <img id="fuelPhotoPrev" alt="" style="display:none;width:72px;height:72px;object-fit:cover;border-radius:10px;border:1px solid var(--line)">
+      <button type="button" class="ghost" data-ph="take">📷 Take photo</button>
+      <button type="button" class="ghost" data-ph="up">🖼 Upload</button>
+      <input name="photo" type="file" accept="image/*" hidden>
+      <span class="sub" id="fuelReceiptNote" style="flex-basis:100%"></span>
+    </div>
+    <label class="sub" id="fuelRmWrap" style="display:none;align-items:center;gap:8px;margin-top:6px"><input name="rmPhoto" type="checkbox" style="width:auto"> Remove the current photo</label>
+  </div>
+  <label class="lbl">Station or charger <span class="sub">(optional, ranks where you pay least)</span><input name="station" maxlength="60" autocomplete="off" list="stationList"></label>
+  <datalist id="stationList"></datalist>
+  <label class="lbl">Job <span class="sub">(optional, adds this cost to the job)</span><select name="job"></select></label>
+  <label class="lbl">Paid by<select name="payer"><option value="me">I paid (owner reimburses me)</option><option value="owner">Owner paid</option></select></label>
+  <label class="sub" style="display:flex;align-items:center;gap:8px;margin:-4px 0 10px"><input name="reimb" type="checkbox" style="width:auto"> Already reimbursed to me</label>
+  <label class="lbl">Note <span class="sub">(optional)</span><input name="note" maxlength="120" autocomplete="off"></label>
+  <div class="clearList"><button class="primary" type="submit" id="fuelSaveBtn">✓ Save fill-up</button></div>
+</form></dialog>
+
+<dialog id="fuelPhotoDialog" class="cardDialog"><div class="dialogIn" style="position:relative">
+  <button type="button" class="iconbtn cardClose" data-close aria-label="Close">×</button>
+  <img id="fuelPhotoFull" alt="Photo" style="display:block;max-width:100%;max-height:85vh;margin:0 auto;border-radius:14px">
+</div></dialog>
+<input type="file" id="vehPhotoInput" accept="image/*" hidden>
+
+<!-- CHOOSE BAR CATEGORIES -->
+<dialog id="pickDialog"><div class="dialogIn">
+  <div class="dialogHead"><h2>Bar categories</h2><button class="iconbtn" data-close aria-label="Close">×</button></div>
+  <p class="sub">Pick up to 5 categories for the bottom bar. They show in the order you pick them. <b id="pickCount"></b></p>
+  <div class="pickOrder" id="pickOrder"></div>
+  <div class="pickList" id="pickList"></div>
+  <div class="row" style="margin-bottom:12px"><input id="newCat" maxlength="24" placeholder="New category (e.g. Bus Fleet)" style="flex:1;min-width:0;border:1px solid var(--line);background:var(--panel2);border-radius:14px;padding:11px"><button class="ghost" type="button" id="newCatAdd">Add</button></div>
+  <button class="primary" id="pickSave" type="button" style="width:100%">Save bar</button>
+</div></dialog>
+
+<!-- INSTALL HELP -->
+<dialog id="installDialog"><div class="dialogIn">
+  <div class="dialogHead"><h2>Install Kayaos</h2><button class="iconbtn" data-close aria-label="Close">×</button></div>
+  <p class="sub">Installing puts Kayaos on your home screen, opens it full-screen, and keeps reminders working best.</p>
+  <ol class="steps" id="installSteps"></ol>
+</div></dialog>
+
+<!-- PHOTO / VIDEO -->
+<!-- three pickers: phones open the right camera mode from accept + capture -->
+<input type="file" id="camPhoto" accept="image/*" capture="environment" hidden>
+<input type="file" id="camVideo" accept="video/*" capture="environment" hidden>
+<input type="file" id="pickGallery" accept="image/*,video/*" hidden>
+<dialog id="mediaDialog"><div class="dialogIn">
+  <div class="dialogHead"><h2>Photo / video</h2><button class="iconbtn" data-close aria-label="Close">×</button></div>
+  <div class="mediaView" id="mediaView"></div>
+  <p class="sub" id="mediaCaption"></p>
+  <button class="ghost dangerText" type="button" id="mediaDelete">Delete</button>
+</div></dialog>
+<dialog id="payDialog"><form class="dialogIn form" id="payForm" method="dialog">
+  <div class="dialogHead"><h2 id="payTitle">Mark as paid</h2><button type="button" class="iconbtn" data-close aria-label="Close">×</button></div>
+  <p class="sub" id="payFor"></p>
+  <p class="sub" id="payPlan"></p>
+  <label class="lbl">Amount paid<div class="money"><span>$</span><input name="amount" type="number" inputmode="decimal" min="0" step="0.01" placeholder="0.00"></div></label>
+  <p class="sub" id="payLeft"></p>
+  <label class="lbl">Paid on<input name="on" type="date"></label>
+  <label class="lbl">Confirmation / reference # <span class="sub">(optional)</span><input name="ref" maxlength="40" autocomplete="off" spellcheck="false" placeholder="from the receipt or app"></label>
+  <p class="sub">You're marking this paid yourself — Kayaos doesn't check with the biller.</p>
+  <div class="clearList"><button class="primary" type="submit" value="save">✓ Mark paid</button></div>
+</form></dialog>
+<dialog id="appDialog"><div class="dialogIn">
+  <div class="dialogHead"><h2>Pick an app</h2><button class="iconbtn" data-close aria-label="Close">×</button></div>
+  <input id="appSearch" class="appSearch" type="search" placeholder="Search your apps" autocomplete="off" aria-label="Search your apps">
+  <div id="appList" class="appList"></div>
+  <p class="sub">The card's button will open this app. If the app isn't on a phone, the website link is used instead.</p>
+</div></dialog>
+<dialog id="mediaChoice"><div class="dialogIn">
+  <div class="dialogHead"><h2 id="mcTitle">Add to this card</h2><button class="iconbtn" data-close aria-label="Close">×</button></div>
+  <div class="seg" id="mcRole" role="radiogroup" aria-label="What is it for?">
+    <button type="button" role="radio" data-role="proof">✓ Proof it’s done</button>
+    <button type="button" role="radio" data-role="guide">💡 How-to</button>
+  </div>
+  <div class="clearList" style="margin-top:10px">
+    <button class="primary" type="button" data-source="photo">📷 Take photo</button>
+    <button class="primary" type="button" data-source="video">🎥 Record video (up to 15 s)</button>
+    <button class="ghost" type="button" data-source="gallery" id="mcGallery">🖼 Choose from gallery</button>
+  </div>
+  <p class="sub" id="mcNote">Photos are shrunk to save space; videos up to 15 seconds. Media is removed 7 days after the card is finished.</p>
+</div></dialog>
+
+<!-- CARD MODAL (tap a card) -->
+<dialog id="cardDialog" class="cardDialog" aria-label="Card details"><button class="iconbtn cardClose" data-close aria-label="Close">×</button><div id="cardModalBody"></div></dialog>
+
+<!-- CLEAR -->
+<dialog id="clearDialog"><div class="dialogIn">
+  <div class="dialogHead"><h2>Clear cards</h2><button class="iconbtn" data-close aria-label="Close">×</button></div>
+  <p class="sub">To remove a single card, tap its × button.</p>
+  <div class="clearList">
+    <button class="ghost" data-clear="done">Clear completed <span class="sub" id="cDone"></span></button>
+    <button class="ghost" data-clear="demo">Clear all demo cards <span class="sub" id="cDemo"></span></button>
+    <button class="danger" data-clear="all">Clear ALL cards <span id="cAll"></span></button>
+  </div>
+</div></dialog>
+
+<!-- SETTINGS + ACCOUNT -->
+<dialog id="settingsDialog"><div class="dialogIn">
+  <div class="dialogHead"><h2>Settings</h2><button class="iconbtn" data-close aria-label="Close">×</button></div>
+  <div class="settingsSec settingsAcct">
+    <h3>Account</h3>
+    <p class="sub" id="authStatus">Not signed in. Local mode still works.</p>
+    <form class="form" id="authForm" method="post" action="#" onsubmit="return false">
+      <input id="authEmail" name="username" type="email" autocomplete="username" autocapitalize="off" spellcheck="false" inputmode="email" placeholder="Email">
+      <div class="pwRow"><input id="authPassword" name="password" type="password" autocomplete="current-password" placeholder="Password"><button class="ghost" type="button" id="pwToggle">Show</button></div>
+      <button class="ghost" type="button" id="forgotBtn" style="justify-self:start">Forgot password?</button>
+      <div class="row"><button class="primary" id="signInBtn" type="button">Sign in</button><button class="ghost" id="signUpBtn" type="button">Create account</button><button class="ghost" id="signOutBtn" type="button" hidden>Sign out</button><button class="ghost" id="syncBtn" type="button" hidden>Sync now</button></div>
+    </form>
+    <form class="form" id="acctForm" onsubmit="return false" style="margin-top:8px">
+      <div id="newPwRow" class="pwRow" hidden><input id="newPassword" name="new-password" type="password" autocomplete="new-password" placeholder="New password (at least 6 characters)"><button class="primary" type="button" id="savePwBtn">Save new password</button></div>
+      <div id="emailRow" class="pwRow" hidden><input id="newEmail" name="new-email" type="email" autocomplete="off" placeholder="New email address"><button class="primary" type="button" id="saveEmailBtn">Change email</button></div>
+    </form>
+    <p class="sub" id="buildLine" style="margin-top:14px"></p>
+    <p class="sub" style="margin-top:10px"><a href="privacy.html">Privacy policy</a> · <a href="terms.html">Terms of use</a></p>
+    <p class="sub" id="cloudHint" hidden>Cloud accounts are off. Add your Supabase URL and anon key in <b>config.user.js</b> (see README).</p>
+  </div>
+  <div class="form">
+    <label class="lbl">Your name (voice alerts say “Hey ___”)<input id="setName" placeholder="Martin"></label>
+    <label class="lbl">Default alert<select id="setAlert"><option value="both">Chime + voice</option><option value="chime">Chime only</option><option value="voice">Voice only</option><option value="silent">Silent (pop-up only)</option></select></label>
+    <div class="lbl">Quiet hours (no repeat reminders)
+      <div class="two"><input id="setQuietStart" type="time" aria-label="Quiet hours start"><input id="setQuietEnd" type="time" aria-label="Quiet hours end"></div>
+    </div>
+    <div class="lbl">Voice
+      <div class="seg" role="radiogroup" aria-label="Voice">
+        <button type="button" role="radio" data-gender="female">♀ Female</button>
+        <button type="button" role="radio" data-gender="male">♂ Male</button>
+      </div>
+    </div>
+    <div class="two">
+      <label class="lbl">Accent<select id="setAccent"></select></label>
+      <label class="lbl">Voice quality<select id="setEngine"><option value="auto">Natural AI voice</option><option value="device">Phone’s built-in voice</option></select></label>
+    </div>
+    <label class="lbl">Specific voice<select id="setVoice"></select></label>
+    <p class="sub" id="voiceNote" hidden style="margin:0"></p>
+    <div class="row"><button class="ghost" type="button" id="testChime">Test chime</button><button class="ghost" type="button" id="testVoice">Test voice</button><button class="ghost" type="button" id="settingsNotify">Enable notifications</button></div>
+  </div>
+</div></dialog>
+</body></html>
