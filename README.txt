@@ -166,3 +166,19 @@ v105 (2026.11.19)
   header shows hours for the period; the four glance tiles show the day, week, month and year that
   hold the selected period. The screen also redraws after midnight and after an entry is edited.
   The "+ Payment" prefill and Export CSV still use all-time totals.
+
+v107 (2026.11.25) — PORTFOLIO
+  More → 📊 Portfolio puts income, expenses, debt and assets in one place.
+  Pulled in automatically (nothing entered twice):
+    Work  — payments received count as income; wages and fuel still owed to you count as assets.
+    Bills — every bill payment is an expense; what's unpaid this month counts as owed.
+    Fuel  — fill-ups you paid and weren't reimbursed for are expenses.
+  Added here: other income, other expenses (both can repeat weekly, every 2 weeks, monthly or
+  yearly), assets (cash, accounts, investments, vehicles, property…) and debts (balance, APR,
+  minimum payment, due day). "Pay" on a debt logs an expense and lowers its balance; editing or
+  deleting that payment puts the amount back.
+  Shows: money in / out / left over for the picked Day, Week, Month or Year; spending and income
+  by category; net worth today with a monthly trend; next 30 days due; debt interest, average APR
+  and payoff time at the minimum. Your own entries count once their date arrives. Export CSV.
+  Sync: saved inside the Work sync record (work_data), so no new table is needed. Update every
+  device to v107; an older version syncing would drop the Portfolio entries from the cloud copy.

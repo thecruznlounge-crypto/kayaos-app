@@ -22,7 +22,7 @@ async function workSync(manual) {
   try {
     const { data, error } = await sb.from('work_data').select('data,updated_at').eq('user_id', currentUser.id).maybeSingle();
     if (error) throw error;
-    const hasLocal = wJobs.length || wShifts.length || wPays.length;
+    const hasLocal = wJobs.length || wShifts.length || wPays.length || (window.pfGet && window.pfGet().items.length);
     /* Data entered before syncing existed has no timestamp: count it as changed now, so it uploads */
     let localAt = load(WK.stamp, 0);
     if (!localAt && hasLocal) { localAt = Date.now(); store(WK.stamp, localAt); }
@@ -30,11 +30,12 @@ async function workSync(manual) {
     if (data && remoteAt > localAt) { // another device changed it last: take that copy
       const d = data.data || {};
       wJobs = d.jobs || []; wShifts = d.shifts || []; wPays = d.pays || [];
+      if (d.port && window.pfSet) window.pfSet(d.port);   /* Portfolio rides along with Work */
       store(WK.jobs, wJobs); store(WK.shifts, wShifts); store(WK.pays, wPays); store(WK.stamp, remoteAt);
       wSel = new Set(); if (typeof renderWork === 'function' && view === 'work') renderWork();
       if (typeof render === 'function') render();
     } else if (localAt > remoteAt && (hasLocal || data)) { // this device changed it last: send it
-      const { error: upErr } = await sb.from('work_data').upsert({ user_id: currentUser.id, data: { jobs: wJobs, shifts: wShifts, pays: wPays }, updated_at: new Date(localAt).toISOString() });
+      const { error: upErr } = await sb.from('work_data').upsert({ user_id: currentUser.id, data: { jobs: wJobs, shifts: wShifts, pays: wPays, ...(window.pfGet ? { port: window.pfGet() } : {}) }, updated_at: new Date(localAt).toISOString() });
       if (upErr) throw upErr;
     }
     if (manual) toast(`Work synced · ${wJobs.length} job${wJobs.length === 1 ? '' : 's'}, ${wPays.length} payment${wPays.length === 1 ? '' : 's'}`);

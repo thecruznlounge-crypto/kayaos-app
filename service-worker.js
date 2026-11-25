@@ -4,7 +4,7 @@
    - CDN libraries (Leaflet, Supabase JS): cache-first.
    - Supabase API, geocoding, map tiles: never intercepted (always live data).
    - 'kayaos-tts' cache (saved AI voice clips) is kept across updates. */
-const CACHE = 'kayaos-2026.11.21-106';
+const CACHE = 'kayaos-2026.11.25-107';
 const ASSETS = ['./', './index.html', './manifest.webmanifest', './apple-touch-icon.png', './favicon.ico',
   './icons/icon-48.png', './icons/icon-72.png', './icons/icon-96.png', './icons/icon-144.png', './icons/icon-192.png', './icons/icon-512.png'];
 const CDN = ['unpkg.com', 'cdn.jsdelivr.net'];

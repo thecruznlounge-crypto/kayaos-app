@@ -437,7 +437,7 @@ function renderSchool() {
 
 function render() {
   renderNav(); setTimeout(() => hydrateThumbs(), 0); if ($('#cardDialog').open) renderCardModal();
-  if (view === 'cards') renderCards(); else if (view === 'week') renderWeek(); else if (view === 'day') renderDay(); else if (view === 'school') renderSchool(); else if (view === 'place') renderMap(); else if (view === 'team') renderTeam(); else if (view === 'work') renderWork(); else if (view === 'bills') renderBills(); else if (view === 'fuel') renderFuel();
+  if (view === 'cards') renderCards(); else if (view === 'week') renderWeek(); else if (view === 'day') renderDay(); else if (view === 'school') renderSchool(); else if (view === 'place') renderMap(); else if (view === 'team') renderTeam(); else if (view === 'work') renderWork(); else if (view === 'bills') renderBills(); else if (view === 'money' && typeof renderPortfolio === 'function') renderPortfolio(); else if (view === 'fuel') renderFuel();
   lastSig = screenSigSafe();
 }
 /* Redraws only when something on screen would actually change (a card's meter moving to a new step, data, or view).
@@ -447,7 +447,7 @@ function screenSigSafe() { try { return screenSig(); } catch (e) { return 'unkno
 function screenSig() {
   const now = new Date();
   const cards = tasks.map(t => { const m = meter(t, now); return [t.id, isDone(t) ? 1 : 0, Math.round(m.pct), m.u, m.label || '', t.media.length, (t.review && t.review.at) || 0, t.checklist.filter(i => i.d).length].join(','); });
-  const extra = [typeof fLogs !== 'undefined' ? fLogs.length : 0, typeof fVehicles !== 'undefined' ? fVehicles.length : 0, typeof wShifts !== 'undefined' ? wShifts.length : 0, typeof wPays !== 'undefined' ? wPays.length : 0, typeof wPer !== 'undefined' ? wPer + wOff : '', ymd(now), typeof wShifts !== 'undefined' ? wShifts.map(s => s.date + s.job + (s.flat ?? '') + (s.start || '') + (s.end || '')).join('') + wPays.map(p => (p.on || '') + p.job + p.amount).join('') : ''].join(',');
+  const extra = [typeof fLogs !== 'undefined' ? fLogs.length : 0, typeof fVehicles !== 'undefined' ? fVehicles.length : 0, typeof wShifts !== 'undefined' ? wShifts.length : 0, typeof wPays !== 'undefined' ? wPays.length : 0, typeof wPer !== 'undefined' ? wPer + wOff : '', window.pfGet ? JSON.stringify(window.pfGet().items).length : 0, ymd(now), typeof wShifts !== 'undefined' ? wShifts.map(s => s.date + s.job + (s.flat ?? '') + (s.start || '') + (s.end || '')).join('') + wPays.map(p => (p.on || '') + p.job + p.amount).join('') : ''].join(',');
   return [view, selectedCat, teamFilter, teamSel, extra, cards.join(';')].join('|');
 }
 function softRender() {
@@ -456,7 +456,7 @@ function softRender() {
 }
 function setView(v) {
   view = v; $$('.view').forEach(s => s.classList.toggle('active', s.dataset.view === v));
-  $('#viewTitle').textContent = { cards: 'Cards', week: 'Week', day: 'Day', school: 'School', team: 'Team', place: 'Place', work: 'Work', bills: 'Bills', fuel: 'Around me' }[v] || 'Kayaos';
+  $('#viewTitle').textContent = { cards: 'Cards', week: 'Week', day: 'Day', school: 'School', team: 'Team', place: 'Place', work: 'Work', bills: 'Bills', money: 'Portfolio', fuel: 'Around me' }[v] || 'Kayaos';
   window.scrollTo({ top: 0 }); render(); if (v === 'team' && currentUser) loadTeams();
 }
 
@@ -1228,6 +1228,7 @@ function openMore() {
     ['school', '📚', 'School', 'Assignments + student alerts'],
     ['work', '💼', 'Work', 'Hours, pay rate, earnings and payments'],
     ['bills', '🧾', 'Bills', 'Due dates, payments and balances'],
+    ['money', '📊', 'Portfolio', 'Income, expenses, debt and net worth'],
     ['fuel', '📍', 'Around me', 'Gas, groceries and places near you'],
     ...(isOwner ? [['owner', '👑', 'Owner dashboard', 'Users, cards and storage']] : []),
     ['settings', '⚙', 'Settings', 'Name, voice, account']
@@ -1237,7 +1238,7 @@ function openMore() {
 }
 $('#moreDialog').addEventListener('click', e => {
   const b = e.target.closest('[data-more]'); if (!b) return; const k = b.dataset.more; $('#moreDialog').close();
-  if (k.startsWith('view:')) { if (k === 'view:cards') selectedCat = 'All'; setView(k.slice(5)); } else if (k === 'team' || k === 'school' || k === 'work' || k === 'bills' || k === 'fuel') setView(k); else if (k === 'owner') openOwner(); else if (k === 'settings') $('#settingsBtn').click(); else if (k === 'pick') openCatPicker(); else if (k.startsWith('cat:')) openCategory(k.slice(4));
+  if (k.startsWith('view:')) { if (k === 'view:cards') selectedCat = 'All'; setView(k.slice(5)); } else if (k === 'team' || k === 'school' || k === 'work' || k === 'bills' || k === 'money' || k === 'fuel') setView(k); else if (k === 'owner') openOwner(); else if (k === 'settings') $('#settingsBtn').click(); else if (k === 'pick') openCatPicker(); else if (k.startsWith('cat:')) openCategory(k.slice(4));
 });
 /* Category picker (up to 5, in the order picked; can add a new category name) */
 let pickOrder = [];
